@@ -1,0 +1,137 @@
+Quake for Dreamcast
+
+	BERO <bero@geocities.co.jp>
+	http://dcquake.sourceforge.net
+
+- you should set joypad config in options/customize control before starting game.
+
+Status
+
+ - working quake and glquake
+ - quake: sometimes buggy color.
+ (I think -m4-single-only (double=32bit) overflow or compiler/math library bug in lighting code)
+ - glquake: transpalency bug
+ - both run with shareware version data files or commercial CD-ROM.
+ - MOD/TC can work.
+ - full control using pad (except console) , and mouse,keyboard support
+ - sound
+ - save to visual memory with zlib compression and icon
+ - cd-da music (but disabled -- if you read data from pc using dcload-ip and cd-da from cd, work fine)
+ - no network
+
+
+JOYSTICK ASSIGN
+
+menu:
+ UP/DOWN        select mod
+ L-TRIG/R-TRIG  scroll description text
+ START/A        start game
+ Y              disk change
+
+game:
+ joystick   keyboard  default bind
+ UP         UP        FORWARD
+ DOWN       DOWN      BACK
+ LEFT       LEFT      TURN LEFT
+ RIGHT      RIGHT     TURN RIGHT
+ A          ENTER     JUMP
+ B          SPACE     JUMP
+ X          none      none
+ Y          Y         none
+ R-TRIG     CTRL      ATTACK
+ L-TRIG     ALT       SIDESTEP
+ analog               move
+
+
+How to run
+
+- it runs CD-R or CD-ROM, dcload-ip with this directory structure:
+
+burned Quake sharware version:
+\QUAKE_SW
+  +- ID1
+       +- glquake (optional*)
+       +- PAK0.PAK
+
+burned Quake commercial version full install:
+\QUAKE
+  +- ID1
+  |    +- glquake (optional*)
+  |    +- PAK0.PAK
+  |    +- PAK1.PAK
+  |    +- quakeXX.pcx or quakeXX.tga (optional)
+  +- other mod (optional)
+  +- other mod (optional)
+  +- games.lst (optional)
+
+(*) glquake directory is genarated when you run glquake on PC, 
+ or mkdir by hand and run under dcload-ip.
+ if this directory exist, loading faster.
+
+Quake commercial version CD-ROM:
+\Data
+  +- ID1
+       +- glquake
+       +- PAK0.PAK
+       +- PAK1.PAK
+
+dcload-ip:
+
+same as burned image but on pc harddrive.
+if quake directory is at C:\QUAKE, under cygwin enviroment, 
+$ mount -b 'C:\quake' /quake
+and
+$ dcload-ip -t <dreamcast ip> glquake.elf
+
+
+Add mod/map/TC
+
+I suggest you run under dcload-ip before burning.
+
+1. Intall/Extract in Quake directory.
+2. read it's document
+3. make "games.lst" in Quake directory
+
+example
+--cut--
+#gamename,dir,cmdline,screenshot,txt
+Quake,id1,,quake00.pcx,
+After the Fall,atf,,quake00.pcx,atf.txt
+Beyond Belief,bbelief,,quake00.pcx,BBELIEF.DOC
+Abyss of Pandemonium,IMPEL,,quake00.pcx,README.TXT
+AirQuake,AIRQUAKE,,quake00.pcx,AIRQUAKE.TXT
+TeamFortress,FORTRESS,,quake00.pcx,README.TXT
+Soldier of Fortune,sof,,quake00.pcx,SOFSP1.TXT
+Raptors!,raptors,,quake00.pcx,README.TXT
+--cut--
+
+if cmdline is only "-game dirname" then you can omit cmdline.
+To make screenshot, run under dcload-ip and press F12 on DC keyboard, or run (gl)quake on PC with 320x200 or 320x240 resolution.
+
+
+License
+
+- Quake source code is under GPL. (See gnu.txt)
+  To make fully working package, you need set of source code.
+  Each parts have own licence , but all licence is "compatible with GPL".
+  so whole licence of total software is under GPL.
+
+Under GPL, if you copy/modify/re-distribute this software, you MUST distribute with source.
+for example:
+ If you put local copy of this software on your site, you MUST put source too.
+ If you distribute own CD-R images such as adding mods/maps, you MUST include source in image OR distribute source with image.
+
+- Quake Shareware version Data files have another Licence.
+ See QUAKE_SW/slicnse.txt
+ It says, "ID grants to Providers the limited right to distribute, free of charge, except normal access fees, and by electronic means only, the Software; provided"
+
+
+Acknowledgement
+
+- id software: Thanks X'mas present, Quake and Quake II source
+- GNU Project: cross compiler and assembler,gcc and binutils
+- redhat: unix like compile envircoment on Windows,Cygwin and free libc and libm for embedded systems, newlib
+- Marcus Comstedt: Pioneer of Dreamcast homebrew development,and technical document
+- Andrew Kieschnick: Dreamcast developmnt enviroment "dcload"
+- Dan Potter and contributors: usable hardware library "KallistiOS"
+- Meiwa: hardware information
