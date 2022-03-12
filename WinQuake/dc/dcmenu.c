@@ -17,12 +17,26 @@
 
 #include	<assert.h>
 
-#define	WIDTH	320
-#define	HEIGHT	240
+#define	IMG_WIDTH	320
+#define	IMG_HEIGHT	240
 
 #define	RGB565(r,g,b)	( (((r)>>3)<<11) | (((g)>>2)<<5) |((b)>>3) )
 
-#define	printf(fmt,...)
+#ifdef QUAKE2
+static char *snapdir = "/scrnshot";
+static char *gamecmd = "+set game";
+static char *gamedir = "baseq2";
+#elif defined(QUAKE2RJ) /* hexen II */
+static char *snapdir = "/shots";
+static char *gamecmd = "-game";
+static char *gamedir = "data1";
+#else
+static char *snapdir = "";
+static char *gamecmd = "-game";
+static char *gamedir = "id1";
+#endif
+
+//#define	printf(fmt,...)
 
 typedef struct
 {
@@ -73,10 +87,10 @@ int pcx_load (const char *filename,unsigned short *dst,int linewidth)
 //	|| (pcx->ymin != 0)
 //	|| (pcx->xmax != (WIDTH-1))
 //	|| (pcx->xmax != (HEIGHT-1))
-	|| ((width = pcx->hres) != WIDTH)
-	|| ((height= pcx->vres) != HEIGHT)
+	|| (pcx->hres != IMG_WIDTH)
+//	|| (pcx->vres != HEIGHT)
 	|| (pcx->color_planes != 1)		// chunky image
-	|| (pcx->bytes_per_line != WIDTH)
+	|| (pcx->bytes_per_line != IMG_WIDTH)
 	|| (pcx->palette_type != 2)		// not a grey scale
 	|| (p[-1] != 0xc)	// palette ID byte
 	) {
@@ -101,6 +115,8 @@ int pcx_load (const char *filename,unsigned short *dst,int linewidth)
 		return -1;
 	}
 
+	width = pcx->hres;
+	height = pcx->vres;
 	printf("OK\n");
 
 	for(i=0;i<256;i++) {
@@ -112,18 +128,24 @@ int pcx_load (const char *filename,unsigned short *dst,int linewidth)
 	
 	for (i=0 ; i<height ; i++)
 	{
-		for (j=0 ; j<width ; j++)
+		for (j=0 ; j<width ;)
 		{
 			int c = *p++;
-			if (c == 0xc1) {
-				dst[j] = pal[*p++];
+			if (c>0xc0) {
+				int count = c&0x3f;
+				do { dst[j++] = pal[*p++]; }while(--count);
 			} else {
-				dst[j] = pal[c];
+				dst[j++] = pal[c];
 			}
 		}
 		dst+=linewidth;
 	}
 	free(buffer);
+
+	if (height<IMG_HEIGHT) {
+		sq_set16(dst,RGB565(0,0,0),linewidth*(IMG_HEIGHT-height)*2);
+	}
+
 	return 0;
 } 
 
@@ -146,7 +168,7 @@ int tga_load (const char *filename,unsigned short *dst,int linewidth)
 	width = *(short*)&buffer[12];
 	height = *(short*)&buffer[14];
 
-	if (buffer[2]!=2 /* uncompressed type */ || buffer[16]!=24 /* depth*/ || width!=WIDTH || height!=HEIGHT) {
+	if (buffer[2]!=2 /* uncompressed type */ || buffer[16]!=24 /* depth*/ || width!=IMG_WIDTH /*|| height!=HEIGHT*/) {
 		free(buffer);
 		return -1;
 	}
@@ -161,7 +183,12 @@ int tga_load (const char *filename,unsigned short *dst,int linewidth)
 		dst+=linewidth;
 	}
 
+	if (height<IMG_HEIGHT) {
+		sq_set16(dst,RGB565(0,0,0),linewidth*(IMG_HEIGHT-height)*2);
+	}
+
 	free (buffer);
+
 	return 0;
 } 
 
@@ -206,6 +233,7 @@ int tga_save (const char *filename)
 int img_load(const char *filename,unsigned short *dst,int linewidth)
 {
 	const char *ext = strrchr(filename,'.');
+	printf("imgload:%s\n",filename);
 	if (ext==NULL) return -1;
 	else if (stricmp(ext+1,"pcx")==0) return pcx_load(filename,dst,linewidth);
 	else if (stricmp(ext+1,"tga")==0) return tga_load(filename,dst,linewidth);
@@ -443,6 +471,7 @@ typedef struct{
 
 void free_gamelist(gamelist_t *gamelist)
 {
+	if (gamelist==NULL) return;
 	free(gamelist->buf);
 	free(gamelist->games);
 	free(gamelist);
@@ -547,7 +576,7 @@ gamelist_t * get_gamelist_fromdir(const char *basedir)
 	n_games = 0;
 	p = namebuf;
 	while((ent = fs_readdir(dir))!=NULL) {
-		if (!ISDIR(ent) || ent->name[0]=='.') continue;
+		if (!ISDIR(ent) || ent->name[0]=='.' || stricmp(ent->name,"docs")==0 || stricmp(ent->name,"help")==0) continue;
 		strcpy(p,ent->name);
 		p += strlen(p)+1;
 		n_games++;
@@ -575,17 +604,35 @@ gamelist_t * get_gamelist_fromdir(const char *basedir)
 			char *ext = strrchr(ent->name,'.');
 			if (ext==NULL) continue;
 			ext++;
-			if (g->snapfile==NULL && (stricmp(ext,"tga")==0 || stricmp(ext,"pcx")==0)) {
+			if (snapdir[0]==0 && g->snapfile==NULL && (stricmp(ext,"tga")==0 || stricmp(ext,"pcx")==0)) {
 				g->snapfile = p2;
 				strcpy(p2,ent->name);
 				p2 += strlen(p2)+1;
-			} else if (g->txtfile==NULL && (stricmp(ext,"txt")==0 || stricmp(ext,"doc")==0)) {
+			} else 
+			if (g->txtfile==NULL && (stricmp(ext,"txt")==0 || stricmp(ext,"doc")==0)) {
 				g->txtfile = p2;
 				strcpy(p2,ent->name);
 				p2 += strlen(p2)+1;
 			}
 		}
 		fs_close(dir);
+	    if (snapdir[0]) {
+		strcat(dirname,snapdir);
+		dir = fs_open(dirpath,O_RDONLY|O_DIR);
+		if (dir){
+		while((ent = fs_readdir(dir))!=NULL) {
+			char *ext = strrchr(ent->name,'.');
+			if (ext==NULL) continue;
+			ext++;
+			if (g->snapfile==NULL && (stricmp(ext,"tga")==0 || stricmp(ext,"pcx")==0)) {
+				g->snapfile = p2;
+				strcat(p2,ent->name);
+				p2 += strlen(p2)+1;
+			}
+		}
+		fs_close(dir);
+		}
+	    }
 //		printf("%s %s %s %s\n",games[n_dir].dirname,games[n_dir].gamename,games[n_dir].snapfile,games[n_dir].txtfile);
 		assert(p2<namebuf+1024*8);
 	}
@@ -610,12 +657,12 @@ gamelist_t * get_gamelist_fromdir(const char *basedir)
 
 static char cmdline[256];
 
-int menu(int *argc,char **argv)
+char* menu(int *argc,char **argv,char **basedirs)
 {
-	gamelist_t *gamelist;
+	char *basedir;
+	gamelist_t *gamelist = NULL;
 	uint8 mcont;
 	char path[256];
-	char *basedir = "/pc/quake";
 
 	pvr_poly_cxt_t	pvr_cxt;
 	pvr_poly_hdr_t	font_polyhdr,snap_polyhdr;
@@ -630,10 +677,7 @@ int menu(int *argc,char **argv)
 #define	WHITE	0xffffffff
 #define	GRAY	0xff808080
 
-	textbuf_t *txtbuf;
-
-	gamelist = get_gamelist(basedir);
-	if (gamelist==NULL) gamelist = get_gamelist_fromdir(basedir);
+	textbuf_t *txtbuf = NULL;
 
 	/* init */
 	vid_set_mode(DM_640x480, PM_RGB565);
@@ -650,7 +694,30 @@ int menu(int *argc,char **argv)
 	pvr_cxt.gen.shading = PVR_SHADE_FLAT;
 	pvr_poly_compile(&snap_polyhdr,&pvr_cxt);
 
-	mcont = maple_first_controller();
+retry:
+	if (txtbuf) {
+		txt_free(txtbuf);
+		txtbuf = NULL;
+	}
+	if (gamelist) free_gamelist(gamelist);
+	iso_ioctl(0,0,0);
+
+	for(i=0;(basedir = basedirs[i])!=NULL;i++) {
+		char path[256];
+		int fd;
+		sprintf(path,"%s/%s",basedir,gamedir);
+		fd  = fs_open(path,O_DIR);
+		if (fd!=0) {
+			fs_close(fd);
+			break;
+		}
+	}
+	if (basedir==NULL) {
+	} else {
+
+		gamelist = get_gamelist(basedir);
+		if (gamelist==NULL) gamelist = get_gamelist_fromdir(basedir);
+	}
 
 	index = 0;
 	txtbuf = NULL;
@@ -662,6 +729,7 @@ int menu(int *argc,char **argv)
 		int i,offset;
 		cont_cond_t	cond;
 
+		mcont = maple_first_controller();
 		if (mcont && cont_get_cond(mcont, &cond)==0) {
 			int buttons,pressed,changed;
 
@@ -670,12 +738,16 @@ int menu(int *argc,char **argv)
 			pressed = buttons & changed;
 			prev_buttons = buttons;
 			if (pressed & (CONT_START|CONT_A)) {
+				if (gamelist==NULL) goto retry;
 				/* start */
 				break;
 			}
+			if (pressed & CONT_Y) {
+				goto retry;
+			}
 
 			if ((pressed & CONT_DPAD_UP) && index>0) index--;
-			if ((pressed & CONT_DPAD_DOWN) && index<gamelist->n_games-1) index++;
+			if ((pressed & CONT_DPAD_DOWN) && gamelist && index<gamelist->n_games-1) index++;
 			if (txtbuf) {
 				if (cond.ltrig && line>0) line--;
 				if (cond.rtrig && line<txtbuf->lines-1) line++;
@@ -691,19 +763,28 @@ start:
 				txt_free(txtbuf);
 				txtbuf = NULL;
 			}
+		    if (gamelist==NULL) {
+		    } else {
 			if (gamelist->games[index].txtfile) {
-				sprintf(path,"%s/%s/%s",basedir,gamelist->games[index].dirname,gamelist->games[index].txtfile);
+				if (gamelist->games[index].dirname)
+					sprintf(path,"%s/%s/%s",basedir,gamelist->games[index].dirname,gamelist->games[index].txtfile);
+				else
+					sprintf(path,"%s/%s",basedir,gamelist->games[index].txtfile);
 				txtbuf = txt_load(path,TEXT_WIDTH);
 			}
 			havesnap = 0;
 			if (gamelist->games[index].snapfile) {
-				sprintf(path,"%s/%s/%s",basedir,gamelist->games[index].dirname,gamelist->games[index].snapfile);
+				if (gamelist->games[index].dirname)
+					sprintf(path,"%s/%s%s/%s",basedir,gamelist->games[index].dirname,snapdir,gamelist->games[index].snapfile);
+				else
+					sprintf(path,"%s/%s",basedir,gamelist->games[index].snapfile);
 				havesnap = (img_load(path,(unsigned short*)snap_txr,512)==0);
 			}
 			if (!havesnap) {
-				sq_set16(snap_txr,RGB565(0,0,255),512*240*2);
-				bfont_draw_str((uint16*)snap_txr + (320-13*FONT_W)/2 + (240-FONT_H)/2*512,512,0,"NO SCREENSHOT");
+				sq_set16(snap_txr,RGB565(0,0,255),512*IMG_HEIGHT*2);
+				bfont_draw_str((uint16*)snap_txr + (IMG_WIDTH-13*FONT_W)/2 + (IMG_HEIGHT-FONT_H)/2*512,512,0,"NO SCREENSHOT");
 			}
+                    }
 			line = 0;
 		}
 		
@@ -717,6 +798,9 @@ start:
 		draw_rectangle(640-320-LEFT_MERGIN,TOP_MERGIN,Z,320,240,WHITE,0,0,320/512.0f,240/512.0f);
 
 		pvr_prim(&font_polyhdr,sizeof(font_polyhdr));
+	    if (gamelist==NULL) {
+		draw_poly_str(LEFT_MERGIN,TOP_MERGIN+240,Z,WHITE,"Please insert game disk and hit Y button");
+	    } else {
 		/* draw select menu */
 		if (index>9) offset=index-9; else offset=0;
 		for(i=0;i<10 && (i+offset<gamelist->n_games);i++) {
@@ -726,6 +810,7 @@ start:
 		if (txtbuf) {
 			draw_text(LEFT_MERGIN,TOP_MERGIN+240,Z,WHITE,txtbuf,line,TEXT_HEIGHT);
 		}
+	    }
 
 		pvr_list_finish();
 		pvr_list_begin(PVR_LIST_TR_POLY);
@@ -739,11 +824,13 @@ start:
 
 	if (gamelist->games[index].cmdline) {
 		strcpy(cmdline,gamelist->games[index].cmdline);
+	} else if (gamelist->games[index].dirname && stricmp(gamelist->games[index].dirname,gamedir)!=0) {
+		sprintf(cmdline,"%s %s",gamecmd,gamelist->games[index].dirname);
 	} else {
-		sprintf(cmdline,"-game %s",gamelist->games[index].dirname);
+		cmdline[0] = 0;
 	}
 	i = *argc;
-	if (stricmp(cmdline,"-game id1")!=0) {
+	{
 		char *s = cmdline;
 		while(*s) {
 			argv[i++] = s;
@@ -754,12 +841,12 @@ start:
 			}
 		}
 	}
-	argv[i++] = NULL;
+	argv[i] = NULL;
 	*argc = i;
 
 	free_gamelist(gamelist);
 
-	return 0;
+	return basedir;
 }
 
 #if 0

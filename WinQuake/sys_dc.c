@@ -206,8 +206,9 @@ void Sys_LowFPPrecision (void)
 #include <lwip/lwip.h>
 
 /* KOS_INIT_FLAGS(INIT_DEFAULT | INIT_NET); */
+extern char* menu(int *argc,char **argv,char **basedir);
 
-int quake_main (int argc, char **argv)
+int main (int argc, char **argv)
 {
 	extern int vcrFile;
 	extern int recording;
@@ -215,13 +216,16 @@ int quake_main (int argc, char **argv)
 	double		time, oldtime, newtime;
 
 	const static char *basedirs[]={
-	"/cd/quake", /* installed or shareware */
+	"/cd/QUAKE", /* installed  */
+	"/cd/QUAKE_SW", /* shareware */
 	"/cd/data", /* official CD-ROM */
 	"/pc/quake", /* debug */
+	"/pc/quake_sw", /* debug */
 	NULL
 	};
 
 	char *basedir;
+#if 0
 	int i;
 	
 	for(i=0;(basedir = basedirs[i])!=NULL;i++) {
@@ -233,14 +237,28 @@ int quake_main (int argc, char **argv)
 	}
 	if (basedir==NULL)
 		Sys_Error("can't find quake dir");
+#else
+	{
+	static char *args[10] = {"quake",NULL};
+	argc = 1;
+	argv = args;
+	basedir = menu(&argc,argv,basedirs);
+	}
+#endif
+#if 0
+	struct ip_addr ipaddr, gw, netmask;
+
+	/* Change these for your network */
+	IP4_ADDR(&ipaddr, 192,168,0,4);
+	IP4_ADDR(&netmask, 255,255,255,0);
+	IP4_ADDR(&gw, 192,168,0,1);
+	lwip_init_static(&ipaddr, &netmask, &gw);
+#endif
 
 	parms.memsize = 10*1024*1024;
 
 	parms.membase = malloc (parms.memsize);
 	parms.basedir = basedir;
-
-//	argc = 0;
-//	argv = NULL;
 
 	COM_InitArgv (argc, argv);
 
@@ -249,6 +267,21 @@ int quake_main (int argc, char **argv)
 
 	Host_Init (&parms);
 
+#if 1 /* same as dos */
+	oldtime = Sys_FloatTime ();
+	while (1)
+	{
+		newtime = Sys_FloatTime ();
+		time = newtime - oldtime;
+
+		if (cls.state == ca_dedicated && (time<sys_ticrate.value))
+			continue;
+
+		Host_Frame (time);
+
+		oldtime = newtime;
+	}
+#else /* same as liunx */
     oldtime = Sys_FloatTime () - 0.1;
     while (1)
     {
@@ -273,6 +306,7 @@ int quake_main (int argc, char **argv)
 
         Host_Frame (time);
     }
+#endif
 }
 
 char *get_savedir(void)
@@ -288,26 +322,4 @@ char *get_savedir(void)
 	savedir[6] = '0' + unit;
 
 	return savedir;
-}
-
-int main(int argc,char **argv)
-{
-#if 1
-	static char *args[10] = {"quake",NULL};
-	
-	argc = 1;
-	argv = args;
-	menu(&argc,argv);
-//	argv[argc++]="-game";
-//	argv[argc++]="airquake";
-#else
-	struct ip_addr ipaddr, gw, netmask;
-
-	/* Change these for your network */
-	IP4_ADDR(&ipaddr, 192,168,0,4);
-	IP4_ADDR(&netmask, 255,255,255,0);
-	IP4_ADDR(&gw, 192,168,0,1);
-	lwip_init_static(&ipaddr, &netmask, &gw);
-#endif
-	return quake_main(argc,argv);
 }

@@ -55,13 +55,14 @@ r_aclipa.o r_aliasa.o r_drawa.o r_edgea.o surf16.o surf8.o worlda.o r_varsa.o
 OBJS = $(COMMON_OBJS) $(SOFT_OBJS) $(DC_OBJS) $(NET_NULL_OBJS) vid_dc.o
 GLOBJS = $(COMMON_OBJS) $(GL_OBJS) $(DC_OBJS) $(NET_NULL_OBJS) gl_viddc.o
 
-LDFLAGS = -nostartfiles -Wl,-Ttext=0x8c010000 dc/startup.o dc/syscalls.o
+LDFLAGS = -nostartfiles -Wl,-Ttext=0x8c010000 
+STARTUP = dc/startup.o dc/syscalls.o
 
-quake.elf : $(OBJS)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o quake.elf $(OBJS) -lm -lz -L/prog/kos-1.1.7/lib -lkallisti -llwip4 -lc -lm
+quake.elf : $(STARUP) $(OBJS)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o quake.elf $(STARTUP) $(OBJS) -lm -lz -L/prog/kos-1.1.7/lib -lkallisti -llwip4 -lc -lm
 
-glquake.elf : $(GLOBJS)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o glquake.elf $(GLOBJS) -lm -lz -L/prog/kos-1.1.7/lib -lgl -ldcutils -lkallisti -lc -lm
+glquake.elf : $(STARTUP) $(GLOBJS)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o glquake.elf $(STARTUP) $(GLOBJS) -lm -lz -L/prog/kos-1.1.7/lib -lgl -ldcutils -lkallisti -lc -lm
 
 dcmenu.elf : dc/dcmenu.o
 	$(CC) $(CFLAGS) $(LDFLAGS) -o dcmenu.elf dc/dcmenu.o -lm -L/prog/kos-1.1.7/lib -lkallisti -llwip4

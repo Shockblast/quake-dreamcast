@@ -105,6 +105,7 @@ _fstat (int file,
   	dbglog(0,"fstat:file %d\n",file);
   	return -1;
   }
+
   memset(st,0,sizeof(*st));
 
   st->st_mode = S_IFREG;
@@ -189,6 +190,9 @@ _sbrk (int incr)
   dbgio_printf("total:%d\n",total);
   return (caddr_t) prev_heap_end;
 }
+
+caddr_t sbrk (int incr) { return sbrk(incr); }
+int mm_init() {return 0;}
 
 int
 _link (char *old, char *new)
